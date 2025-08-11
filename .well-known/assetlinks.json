@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.bookovia.bookovia",
+      "sha256_cert_fingerprints": [
+        "20:67:C4:42:A5:CA:21:C7:95:89:7C:E7:2A:B7:EA:AC:9B:50:78:D8:18:73:AB:78:BE:43:BA:CC:44:A1:AE:10"
+      ]
+    }
+  }
+]

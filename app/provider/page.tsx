@@ -1,3 +1,4 @@
+
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -20,30 +21,62 @@ interface Provider {
   slug?: string
   created_at?: string
   updated_at?: string
+  is_public?: boolean
 }
 
 export default async function ProvidersPage() {
   console.log("=== Providers listing page accessed ===")
 
   try {
-    // Fetch all providers without ordering by created_at first
-    const { data: providers, error: providersError } = await supabase.from("providers").select("*")
+    // Fetch all providers
+    const { data: providers, error: providersError } = await supabase
+      .from("providers")
+      .select("*")
 
     if (providersError) {
       console.error("❌ Providers query error:", providersError)
     }
 
     console.log(`✅ Found ${providers?.length || 0} providers`)
+    console.log("Provider Details:", providers?.map(p => ({
+      provider_id: p.provider_id,
+      business_name: p.business_name,
+      is_public: p.is_public,
+      hero_image: p.hero_image
+    })))
 
-    // Also get a count of services per provider (try both possible column names)
+    // Fetch service images for all providers
+    let serviceImagesMap = new Map<string, string>()
+    if (providers && providers.length > 0) {
+      const providerIds = providers.map(p => p.provider_id)
+      const { data: serviceImages, error: imagesError } = await supabase
+        .from("service_images")
+        .select("provider_id, image_url")
+        .in("provider_id", providerIds)
+        .order("created_at", { ascending: true }) 
+
+      if (imagesError) {
+        console.error("❌ Service images query error:", imagesError)
+      } else {
+        console.log("All Service Images Data:", serviceImages)
+        // Map the first image_url per provider_id
+        serviceImages?.forEach(img => {
+          if (!serviceImagesMap.has(img.provider_id)) {
+            serviceImagesMap.set(img.provider_id, img.image_url)
+          }
+        })
+        console.log("Mapped Service Images:", Array.from(serviceImagesMap.entries()))
+      }
+    }
+
+    // Also get a count of services per provider
     let serviceCounts: any[] = []
     let serviceCountsError: any = null
-
-    // First try with provider_id
-    const { data: serviceCountsById, error: errorById } = await supabase.from("services").select("provider_id")
+    const { data: serviceCountsById, error: errorById } = await supabase
+      .from("services")
+      .select("provider_id")
 
     if (serviceCountsById) {
-      // Count services manually since group by might not work
       const countMap = new Map()
       serviceCountsById.forEach((service: any) => {
         const id = service.provider_id
@@ -60,6 +93,9 @@ export default async function ProvidersPage() {
     serviceCounts.forEach((item: any) => {
       serviceCountMap.set(item.provider_id, item.count)
     })
+
+    // Base URL for Supabase storage bucket
+    const bucketBaseUrl = "https://ufkwxbgkxtlvkvxmogto.supabase.co/storage/v1/object/public/"
 
     return (
       <div className="min-h-screen bg-white">
@@ -94,6 +130,9 @@ export default async function ProvidersPage() {
                 const providerId = provider.id || provider.provider_id
                 const providerName = provider.name || provider.business_name
                 const serviceCount = serviceCountMap.get(providerId) || 0
+                // Construct full image URL from service_images
+                const serviceImageUrl = serviceImagesMap.get(providerId)
+                const fullImageUrl = serviceImageUrl ? `${bucketBaseUrl}${serviceImageUrl}` : "/placeholder.svg?height=200&width=300"
 
                 return (
                   <div
@@ -103,7 +142,7 @@ export default async function ProvidersPage() {
                     {/* Provider Image */}
                     <div className="relative h-48 w-full overflow-hidden">
                       <Image
-                        src={provider.hero_image || "/placeholder.svg?height=200&width=300"}
+                        src={fullImageUrl}
                         alt={`${providerName} hero image`}
                         fill
                         className="object-cover"
@@ -114,7 +153,6 @@ export default async function ProvidersPage() {
                     {/* Provider Info */}
                     <div className="p-4">
                       <h3 className="text-lg font-semibold text-black mb-2">{providerName || "Unnamed Provider"}</h3>
-
                       {provider.specialty && (
                         <div className="mb-2">
                           <span className="inline-block bg-primary/10 text-primary px-2 py-1 rounded text-xs font-medium">
@@ -122,7 +160,6 @@ export default async function ProvidersPage() {
                           </span>
                         </div>
                       )}
-
                       {provider.address && (
                         <div className="flex items-start text-gray-600 mb-2">
                           <MapPin className="h-4 w-4 mr-1 mt-0.5 flex-shrink-0" />
@@ -132,7 +169,6 @@ export default async function ProvidersPage() {
                           </span>
                         </div>
                       )}
-
                       {provider.rating && (
                         <div className="flex items-center mb-3">
                           <div className="flex items-center">
@@ -144,8 +180,6 @@ export default async function ProvidersPage() {
                           )}
                         </div>
                       )}
-
-                      {/* Contact Info */}
                       <div className="flex flex-wrap gap-3 text-xs text-gray-600 mb-4">
                         {provider.phone && (
                           <div className="flex items-center">
@@ -160,10 +194,7 @@ export default async function ProvidersPage() {
                           </div>
                         )}
                       </div>
-
-                      {/* Action Buttons */}
                       <div className="space-y-2">
-                        {/* Try different ID formats */}
                         {provider.id && (
                           <Link href={`/provider/${provider.id}`} className="block">
                             <Button className="w-full bg-primary hover:bg-primary/90 text-white text-sm">
@@ -171,7 +202,6 @@ export default async function ProvidersPage() {
                             </Button>
                           </Link>
                         )}
-
                         {provider.provider_id && provider.provider_id !== provider.id && (
                           <Link href={`/provider/${provider.provider_id}`} className="block">
                             <Button variant="outline" className="w-full text-sm bg-transparent">
@@ -179,7 +209,6 @@ export default async function ProvidersPage() {
                             </Button>
                           </Link>
                         )}
-
                         {provider.slug && provider.slug !== provider.id && provider.slug !== provider.provider_id && (
                           <Link href={`/provider/${provider.slug}`} className="block">
                             <Button
@@ -203,7 +232,6 @@ export default async function ProvidersPage() {
                 <h3 className="text-lg font-medium mb-2">No Providers Found</h3>
                 <p className="text-sm">There are no service providers in the database yet.</p>
               </div>
-
               {providersError && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4 max-w-md mx-auto">
                   <h4 className="text-red-800 font-medium mb-2">Database Error</h4>
@@ -217,20 +245,26 @@ export default async function ProvidersPage() {
         {/* Bottom CTA */}
         <div className="bg-primary/5 border-t mt-12">
           <div className="container mx-auto px-4 py-8 text-center">
-            <h2 className="text-xl font-semibold text-black mb-4">Ready to book a service?</h2>
-            <p className="text-gray-600 mb-6">Download the Bookovia app to book appointments with these providers.</p>
+            <h2 className="text-white text-lg font-semibold mb-4">
+              Download the Bookovia
+              <br />
+              app to book a service
+            </h2>
             <Link href="https://bookovia.onelink.me/6MF9/yxg770e5">
-              <Button className="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-full">
-                Download the App
+              <Button className="w-full bg-primary hover:bg-primary/90 text-white rounded-full py-4 text-base font-medium mb-3">
+                Download the app
               </Button>
             </Link>
+            <div className="flex items-center justify-center text-white/70">
+              <span className="text-xs mr-2">Powered by</span>
+              <span className="text-sm font-semibold">bookovia</span>
+            </div>
           </div>
         </div>
       </div>
     )
   } catch (error) {
     console.error("❌ Unexpected error in ProvidersPage:", error)
-
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-4">
         <div className="text-center max-w-md">

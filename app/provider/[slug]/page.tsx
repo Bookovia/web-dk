@@ -1,3 +1,4 @@
+
 import { redirect } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
@@ -40,7 +41,8 @@ interface Service {
 
 interface ServiceImage {
   id: string
-  service_id: string
+  provider_id: string
+  service_id: string | null
   image_url: string
   is_primary: boolean
   alt_text?: string
@@ -81,10 +83,10 @@ export default async function ProviderPage({ params }: PageProps) {
         .select("*")
         .eq("id", slug)
         .maybeSingle()
-
+      
       if (providerById) {
         provider = providerById
-        console.log("✅ Found provider by id:", provider.name || provider.business_name)
+        console.log("✅ Found provider by id:", provider?.name || provider?.business_name)
       } else {
         // Try provider_id column
         const { data: providerByProviderId, error: errorByProviderId } = await supabase
@@ -95,7 +97,7 @@ export default async function ProviderPage({ params }: PageProps) {
 
         if (providerByProviderId) {
           provider = providerByProviderId
-          console.log("✅ Found provider by provider_id:", provider.name || provider.business_name)
+          console.log("✅ Found provider by provider_id:", provider?.name || provider?.business_name)
         } else {
           providerError = errorById || errorByProviderId
         }
@@ -110,7 +112,7 @@ export default async function ProviderPage({ params }: PageProps) {
 
       if (providerBySlug) {
         provider = providerBySlug
-        console.log("✅ Found provider by slug:", provider.name || provider.business_name)
+        console.log("✅ Found provider by slug:", provider?.name || provider?.business_name)
       } else {
         providerError = errorBySlug
       }
@@ -126,48 +128,76 @@ export default async function ProviderPage({ params }: PageProps) {
       redirect("/not-found")
     }
 
-    // Get the correct provider ID for services query
+    // Get the correct provider ID with type safety
     const providerId = provider.id || provider.provider_id
-    console.log("🔍 Using provider ID for services:", providerId)
+    if (!providerId) {
+      console.error("❌ Provider ID is undefined for provider:", provider)
+      redirect("/not-found")
+    }
+    console.log("🔍 Using provider ID for services and images:", providerId)
 
-    // Get services for this provider - without ordering by price since it might not exist
+    // Fetch service images for the provider to use as hero image if needed
+    let serviceImagesMap = new Map<string, string>()
+    const { data: serviceImages, error: imagesError } = await supabase
+      .from("service_images")
+      .select("provider_id, image_url")
+      .eq("provider_id", providerId)
+      .order("created_at", { ascending: true }) // Use the earliest image as hero
+
+    if (imagesError) {
+      console.error("❌ Service images query error:", imagesError)
+    } else {
+      console.log("All Service Images Data:", serviceImages)
+      serviceImages?.forEach(img => {
+        if (!serviceImagesMap.has(img.provider_id)) {
+          serviceImagesMap.set(img.provider_id, img.image_url)
+        }
+      })
+      console.log("Mapped Service Images:", Array.from(serviceImagesMap.entries()))
+    }
+
+    // Get services for this provider
     const { data: services, error: servicesError } = await supabase
       .from("services")
       .select("*")
       .eq("provider_id", providerId)
+      .limit(100)
 
     if (servicesError) {
       console.error("❌ Services query error:", servicesError)
     } else {
       console.log(`✅ Found ${services?.length || 0} services`)
+      console.log("Services Data:", services) // Debug services with IDs
     }
 
-    // Get service images if we have a provider
-    let serviceImages: ServiceImage[] = []
+    // Get service images
+    let serviceImagesList: ServiceImage[] = []
+    const { data: images, error: imagesListError } = await supabase
+      .from("service_images")
+      .select("*")
+      .eq("provider_id", providerId)
 
-    if (providerId) {
-      console.log("🔍 Fetching service images for provider:", providerId)
-      const { data: images, error: imagesError } = await supabase
-        .from("service_images")
-        .select("*")
-        .eq("provider_id", providerId)
-
-      if (imagesError) {
-        console.error("❌ Images query error:", imagesError)
-      } else {
-        serviceImages = images || []
-        console.log(`✅ Found ${serviceImages.length} service images`)
-      }
+    if (imagesListError) {
+      console.error("❌ Images query error:", imagesListError)
+    } else {
+      serviceImagesList = images || []
+      console.log(`✅ Found ${serviceImagesList.length} service images`)
+      console.log("Service Images List:", serviceImagesList) // Debug service_id mapping
     }
 
-    // Create a map of service images for easy lookup
+    // Create a map of service images for easy lookup by service_id, handle null/undefined
     const serviceImageMap = new Map<string, ServiceImage[]>()
-    serviceImages.forEach((image) => {
-      if (!serviceImageMap.has(image.service_id)) {
-        serviceImageMap.set(image.service_id, [])
+    serviceImagesList.forEach((image) => {
+      const serviceId = image.service_id || "unlinked" // Fallback for unlinked images
+      if (!serviceImageMap.has(serviceId)) {
+        serviceImageMap.set(serviceId, [])
       }
-      serviceImageMap.get(image.service_id)!.push(image)
+      serviceImageMap.get(serviceId)!.push(image)
     })
+    console.log("Service Image Map:", Array.from(serviceImageMap.entries())) // Debug map contents
+
+    // Fallback to provider images if no service-specific images
+    const providerImages = serviceImagesList.length > 0 ? serviceImagesList : []
 
     // Sort services by price if price exists, otherwise by name
     const sortedServices = services?.sort((a, b) => {
@@ -179,12 +209,17 @@ export default async function ProviderPage({ params }: PageProps) {
       return (a.name || "").localeCompare(b.name || "")
     })
 
+    // Base URL for Supabase storage bucket
+    const bucketBaseUrl = "https://ufkwxbgkxtlvkvxmogto.supabase.co/storage/v1/object/public/"
+    // Use the first service image as hero image if provider.hero_image is undefined
+    const heroImageUrl = provider.hero_image || (serviceImagesMap.get(providerId) ? `${bucketBaseUrl}${serviceImagesMap.get(providerId)}` : "/placeholder.svg?height=280&width=400")
+
     return (
       <div className="min-h-screen bg-white">
         {/* Hero Image */}
         <div className="relative h-[280px] w-full overflow-hidden">
           <Image
-            src={provider.hero_image || "/placeholder.svg?height=280&width=400"}
+            src={heroImageUrl}
             alt={`${provider.business_name || provider.name} hero image`}
             fill
             className="object-cover"
@@ -260,7 +295,8 @@ export default async function ProviderPage({ params }: PageProps) {
             {sortedServices && sortedServices.length > 0 ? (
               <div className="space-y-6">
                 {sortedServices.map((service) => {
-                  const serviceImagesForService = serviceImageMap.get(service.id) || []
+                  const serviceImagesForService = serviceImageMap.get(service.id) || serviceImageMap.get("unlinked") || []
+                  console.log(`Service ID: ${service.id}, Images:`, serviceImagesForService) // Debug per service
                   const primaryImage =
                     serviceImagesForService.find((img) => img.is_primary) || serviceImagesForService[0]
                   const servicePrice = getServicePrice(service)
@@ -271,7 +307,7 @@ export default async function ProviderPage({ params }: PageProps) {
                         {/* Service Image */}
                         <div className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
                           <Image
-                            src={primaryImage?.image_url || "/placeholder.svg?height=100&width=100"}
+                            src={primaryImage?.image_url ? `${bucketBaseUrl}${primaryImage.image_url}` : "/placeholder.svg?height=100&width=100"}
                             alt={primaryImage?.alt_text || service.name}
                             fill
                             className="object-cover"

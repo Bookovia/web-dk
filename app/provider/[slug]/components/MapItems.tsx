@@ -21,7 +21,7 @@ export const GarageMap: React.FC<GarageMapProps> = ({ locationHex, businessName 
   const center = { lat, lng };
 
    return (
-    <LoadScript googleMapsApiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!}>
+    <LoadScript googleMapsApiKey={process.env.GOOGLE_MAPS_API_KEY!}>
       <GoogleMap mapContainerStyle={containerStyle} center={center} zoom={20}  mapTypeId="satellite" 
       options={{
     tilt: 45,

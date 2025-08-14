@@ -1,4 +1,3 @@
-
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -53,7 +52,7 @@ export default async function ProvidersPage() {
         .from("service_images")
         .select("provider_id, image_url")
         .in("provider_id", providerIds)
-        .order("created_at", { ascending: true }) 
+        .order("created_at", { ascending: true }) // Ensure the earliest image is first
 
       if (imagesError) {
         console.error("❌ Service images query error:", imagesError)
@@ -133,6 +132,10 @@ export default async function ProvidersPage() {
                 // Construct full image URL from service_images
                 const serviceImageUrl = serviceImagesMap.get(providerId)
                 const fullImageUrl = serviceImageUrl ? `${bucketBaseUrl}${serviceImageUrl}` : "/placeholder.svg?height=200&width=300"
+
+
+                // console.log({provider})
+                // console.log({provider_image: provider.hero_image})
 
                 return (
                   <div

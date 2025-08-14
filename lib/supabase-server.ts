@@ -12,6 +12,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env
 
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
+
 console.log("=== Supabase Configuration ===")
 console.log("URL Source:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "ENV_VAR" : "HARDCODED")
 console.log("Key Source:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "ENV_VAR" : "HARDCODED")

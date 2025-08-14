@@ -1,17 +1,19 @@
 
+
 import { redirect } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { MapPin, Star, Clock, Phone, Mail } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import DetailTags from "./components/DetailTags"
 
 interface Provider {
   id?: string
   provider_id?: string
   name?: string
-  business_name?: string
-  address?: string
+  // business_name?: string
+  // address?: string
   distance?: string
   hero_image?: string
   phone?: string
@@ -22,6 +24,11 @@ interface Provider {
   slug?: string
   created_at?: string
   updated_at?: string
+
+  business_name: string,
+  description: string,
+  address: string,
+  garage_location: string,
 }
 
 interface Service {
@@ -42,7 +49,7 @@ interface Service {
 interface ServiceImage {
   id: string
   provider_id: string
-  service_id: string | null
+  service_id: string
   image_url: string
   is_primary: boolean
   alt_text?: string
@@ -167,7 +174,6 @@ export default async function ProviderPage({ params }: PageProps) {
       console.error("❌ Services query error:", servicesError)
     } else {
       console.log(`✅ Found ${services?.length || 0} services`)
-      console.log("Services Data:", services) // Debug services with IDs
     }
 
     // Get service images
@@ -182,22 +188,16 @@ export default async function ProviderPage({ params }: PageProps) {
     } else {
       serviceImagesList = images || []
       console.log(`✅ Found ${serviceImagesList.length} service images`)
-      console.log("Service Images List:", serviceImagesList) // Debug service_id mapping
     }
 
-    // Create a map of service images for easy lookup by service_id, handle null/undefined
+    // Create a map of service images for easy lookup
     const serviceImageMap = new Map<string, ServiceImage[]>()
     serviceImagesList.forEach((image) => {
-      const serviceId = image.service_id || "unlinked" // Fallback for unlinked images
-      if (!serviceImageMap.has(serviceId)) {
-        serviceImageMap.set(serviceId, [])
+      if (!serviceImageMap.has(image.service_id)) {
+        serviceImageMap.set(image.service_id, [])
       }
-      serviceImageMap.get(serviceId)!.push(image)
+      serviceImageMap.get(image.service_id)!.push(image)
     })
-    console.log("Service Image Map:", Array.from(serviceImageMap.entries())) // Debug map contents
-
-    // Fallback to provider images if no service-specific images
-    const providerImages = serviceImagesList.length > 0 ? serviceImagesList : []
 
     // Sort services by price if price exists, otherwise by name
     const sortedServices = services?.sort((a, b) => {
@@ -214,6 +214,9 @@ export default async function ProviderPage({ params }: PageProps) {
     // Use the first service image as hero image if provider.hero_image is undefined
     const heroImageUrl = provider.hero_image || (serviceImagesMap.get(providerId) ? `${bucketBaseUrl}${serviceImagesMap.get(providerId)}` : "/placeholder.svg?height=280&width=400")
 
+    
+    console.log({provider})
+    
     return (
       <div className="min-h-screen bg-white">
         {/* Hero Image */}
@@ -282,88 +285,10 @@ export default async function ProviderPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex border-b border-gray-200 mb-6">
-            <button className="flex-1 pb-3 text-center text-primary font-medium border-b-2 border-primary">
-              Services
-            </button>
-            <button className="flex-1 pb-3 text-center text-gray-500 font-medium">Details</button>
-          </div>
 
-          {/* Services Section */}
-          <div className="mb-8">
-            {sortedServices && sortedServices.length > 0 ? (
-              <div className="space-y-6">
-                {sortedServices.map((service) => {
-                  const serviceImagesForService = serviceImageMap.get(service.id) || serviceImageMap.get("unlinked") || []
-                  console.log(`Service ID: ${service.id}, Images:`, serviceImagesForService) // Debug per service
-                  const primaryImage =
-                    serviceImagesForService.find((img) => img.is_primary) || serviceImagesForService[0]
-                  const servicePrice = getServicePrice(service)
+          <DetailTags serviceImageMap={serviceImageMap} servicesError={servicesError} sortedServices={sortedServices} Details={provider} />
 
-                  return (
-                    <div key={service.id} className="border-b border-gray-100 pb-6 last:border-b-0">
-                      <div className="flex items-start gap-4">
-                        {/* Service Image */}
-                        <div className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
-                          <Image
-                            src={primaryImage?.image_url ? `${bucketBaseUrl}${primaryImage.image_url}` : "/placeholder.svg?height=100&width=100"}
-                            alt={primaryImage?.alt_text || service.name}
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
 
-                        {/* Service Details */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-semibold text-black mb-1">{service.name}</h3>
-                          <p className="text-gray-500 text-sm mb-2">{service.description || "Professional service"}</p>
-
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                              {servicePrice > 0 && (
-                                <span className="text-lg font-semibold text-black">${servicePrice}</span>
-                              )}
-                              {service.duration_minutes && (
-                                <div className="flex items-center text-gray-500 text-sm">
-                                  <Clock className="h-4 w-4 mr-1" />
-                                  <span>{service.duration_minutes} min</span>
-                                </div>
-                              )}
-                            </div>
-
-                            {service.category && (
-                              <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs capitalize">
-                                {service.category}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Debug info for each service */}
-                          <div className="mt-2 text-xs text-gray-500">
-                            Price: {service.price || "N/A"} | Cost: {service.cost || "N/A"} | Amount:{" "}
-                            {service.amount || "N/A"}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <p>No services available at this time.</p>
-                <p className="text-sm mt-2">Please contact the provider directly for service information.</p>
-                {servicesError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-4">
-                    <p className="text-red-600 text-sm">
-                      <strong>Error:</strong> {servicesError.message}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Bottom CTA */}

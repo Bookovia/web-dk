@@ -221,6 +221,8 @@ export default function DetailTags({
         />
         {/* <AddressMap address={Details.address} /> */}
 
+
+
         {Details?.description && (
           <p className="font-normal text-sm font-jakarta">
             {Details.description}

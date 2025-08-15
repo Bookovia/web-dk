@@ -1,11 +1,16 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { Inter,  Plus_Jakarta_Sans } from "next/font/google"
 import { Suspense } from "react"
 import ChunkErrorBoundary from "./components/chunk-error-boundary"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  variable: '--font-plus-jakarta',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: "Bookovia | Book Trusted Car Detailers & Mechanics Near You",
@@ -66,7 +71,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="scroll-smooth">
-      <body className={inter.className}>
+      <body className={`${inter.className} ${plusJakartaSans.variable}`}>
         <ChunkErrorBoundary>
           <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
         </ChunkErrorBoundary>
